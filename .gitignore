@@ -1,0 +1,28 @@
+# Entorno virtual
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Datos generados en runtime
+quiz_data/
+output/
+
+# Archivos temporales
+*.tmp
+*.temp
+
+# PDFs subidos (privacidad)
+*.pdf
+
+# IDEs
+.vscode/
+.idea/
+
+# Variables de entorno
+.env
