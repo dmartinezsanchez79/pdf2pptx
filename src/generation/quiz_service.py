@@ -1,20 +1,26 @@
 """
 Servicio de generación del quiz.
 
-Mismo patrón Map-Reduce que presentation_service:
-  1. Divide el texto en chunks.
-  2. Por cada chunk, llama al modelo para extraer preguntas.
-  3. Valida y deduplica.
-  4. Devuelve un Quiz con las preguntas resultantes.
+Patrón Map-Reduce:
+  1. Limpieza agresiva del texto (elimina metadatos, URLs, ruido editorial).
+  2. División en chunks.
+  3. Filtrado: solo se procesan chunks con suficiente sustancia pedagógica.
+  4. Por cada chunk válido, llamada al modelo para extraer preguntas.
+  5. Validación, deduplicación y límite de preguntas.
 """
 
 from src.domain.models import ExtractedDocument, Question, Quiz
 from src.ai.ollama_client import OllamaClient
 from src.ai.prompt_builder import build_quiz_prompt
-from src.extraction.text_cleaner import split_into_chunks
+from src.extraction.text_cleaner import split_into_chunks, clean_for_quiz
 from src.extraction.language_detector import detect_language
 from src.validation.quiz_validator import validate_question, validate_quiz
 from config.settings import QUIZ_MAX_QUESTIONS
+
+# Un chunk debe tener al menos estas palabras para ser procesado
+_MIN_CHUNK_WORDS = 40
+# Longitud media de línea mínima (chunks con muchas líneas cortas = índice/portada)
+_MIN_AVG_LINE_LENGTH = 30
 
 
 class QuizService:
@@ -34,12 +40,15 @@ class QuizService:
     # ------------------------------------------------------------------
 
     def _generate_questions(self, document: ExtractedDocument, language: str) -> list[Question]:
-        chunks = split_into_chunks(document.full_text())
+        clean_text = clean_for_quiz(document.full_text())
+        chunks = split_into_chunks(clean_text)
         all_questions: list[Question] = []
 
         for chunk in chunks:
             if len(all_questions) >= QUIZ_MAX_QUESTIONS:
                 break
+            if not _is_quiz_worthy(chunk):
+                continue
             questions = self._questions_from_chunk(chunk, document.title, language)
             all_questions.extend(questions)
 
@@ -53,10 +62,8 @@ class QuizService:
         except Exception:
             return []
 
-        raw_questions = data.get("questions", [])
         questions: list[Question] = []
-
-        for item in raw_questions:
+        for item in data.get("questions", []):
             q = _parse_question(item)
             if q is None:
                 continue
@@ -68,7 +75,32 @@ class QuizService:
 
 
 # ---------------------------------------------------------------------------
-# Helper de parseo
+# Filtro de calidad del chunk
+# ---------------------------------------------------------------------------
+
+def _is_quiz_worthy(chunk: str) -> bool:
+    """
+    Descarta chunks que no tienen sustancia pedagógica:
+    - Demasiado cortos (portada, índice de una sola entrada).
+    - Líneas muy cortas en promedio (tabla de contenidos, listas de datos).
+    """
+    words = chunk.split()
+    if len(words) < _MIN_CHUNK_WORDS:
+        return False
+
+    lines = [l.strip() for l in chunk.splitlines() if l.strip()]
+    if not lines:
+        return False
+
+    avg_line_len = sum(len(l) for l in lines) / len(lines)
+    if avg_line_len < _MIN_AVG_LINE_LENGTH:
+        return False
+
+    return True
+
+
+# ---------------------------------------------------------------------------
+# Parseo del output del modelo
 # ---------------------------------------------------------------------------
 
 def _parse_question(item: dict) -> Question | None:
@@ -91,7 +123,9 @@ def _parse_question(item: dict) -> Question | None:
 
     return Question(
         text=text,
-        options=options,
+        options=[str(o).strip() for o in options],
         correct_index=correct_index,
         explanation=explanation,
+        topic=str(item.get("topic", "")).strip(),
+        difficulty=str(item.get("difficulty", "")).strip(),
     )

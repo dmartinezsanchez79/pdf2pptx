@@ -122,6 +122,8 @@ class Question:
     options: list[str]          # siempre 4 elementos
     correct_index: int          # 0-3
     explanation: str = ""
+    topic: str = ""             # tema o concepto que evalúa (opcional)
+    difficulty: str = ""        # "fácil" | "media" | "difícil" (opcional)
 
     def correct_option(self) -> str:
         return self.options[self.correct_index]

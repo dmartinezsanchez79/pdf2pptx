@@ -113,6 +113,8 @@ def _save_quiz(quiz: Quiz, pdf_name: str, model: str) -> None:
                 "options": q.options,
                 "correct_index": q.correct_index,
                 "explanation": q.explanation,
+                "topic": q.topic,
+                "difficulty": q.difficulty,
             }
             for q in quiz.questions
         ],

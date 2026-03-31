@@ -23,6 +23,20 @@ def clean_and_segment(raw_text: str) -> list[DocumentSection]:
     return _segment(cleaned)
 
 
+def clean_for_quiz(raw_text: str) -> str:
+    """
+    Limpieza agresiva específica para el quiz.
+    Elimina metadatos, URLs, contenido editorial y ruido que no tiene
+    valor pedagógico y que contaminaría las preguntas generadas.
+    No se usa en el pipeline PPTX para no perder contexto de las secciones.
+    """
+    text = _clean(raw_text)
+    text = _remove_urls(text)
+    text = _remove_metadata_lines(text)
+    text = _remove_noise_lines(text)
+    return text.strip()
+
+
 def split_into_chunks(text: str) -> list[str]:
     """
     Divide el texto en fragmentos solapados aptos para la ventana de contexto del modelo.
@@ -100,6 +114,64 @@ def _remove_repeated_headers(text: str) -> str:
 def _remove_page_numbers(text: str) -> str:
     """Elimina líneas que solo contienen un número (número de página)."""
     return re.sub(r"^\s*\d+\s*$", "", text, flags=re.MULTILINE)
+
+
+# ---------------------------------------------------------------------------
+# Limpieza agresiva para quiz
+# ---------------------------------------------------------------------------
+
+def _remove_urls(text: str) -> str:
+    """Elimina URLs, direcciones web y correos electrónicos."""
+    text = re.sub(r'https?://\S+', '', text)
+    text = re.sub(r'www\.\S+', '', text)
+    text = re.sub(r'\S+@\S+\.\S+', '', text)
+    return text
+
+
+def _remove_metadata_lines(text: str) -> str:
+    """
+    Elimina líneas que contienen metadatos editoriales sin valor pedagógico:
+    ISBN, precios, derechos de autor, editoriales, números de depósito legal.
+    """
+    _META_PATTERNS = [
+        r'ISBN[\s\-:]?\d',
+        r'©|Copyright|All rights reserved|Todos los derechos reservados',
+        r'Primera edición|Segunda edición|[\w\s]+ edición.*\d{4}',
+        r'Impreso en|Printed in',
+        r'Depósito legal|D\.L\.',
+        r'\$\s*\d+|\€\s*\d+|\bprecio\b',
+        r'\beditorial\b.{0,40}\bS\.?A\.?\b',
+        r'Reservados todos los derechos',
+        r'queda prohibida la reproducción',
+    ]
+    lines = text.splitlines()
+    filtered = [
+        line for line in lines
+        if not any(re.search(p, line.strip(), re.IGNORECASE) for p in _META_PATTERNS)
+    ]
+    return '\n'.join(filtered)
+
+
+def _remove_noise_lines(text: str) -> str:
+    """
+    Elimina líneas que son claramente ruido:
+    solo números, teléfonos, líneas de 1-2 palabras aisladas,
+    líneas que son solo puntuación o símbolos.
+    """
+    _NOISE_PATTERNS = [
+        r'^[\d\s\.\-\(\)\/\+]+$',          # solo números y símbolos
+        r'^tel[éefono]*[\s\.:]+[\d\s\-\+\(\)]+',  # teléfonos
+        r'^fax[\s\.:]+[\d\s\-\+\(\)]+',    # fax
+        r'^\s*https?://',                   # URL como línea
+        r'^\s*www\.',                       # web como línea
+        r'^[•·\-–—\*]+\s*$',               # solo viñetas o guiones
+    ]
+    lines = text.splitlines()
+    filtered = [
+        line for line in lines
+        if not any(re.match(p, line.strip(), re.IGNORECASE) for p in _NOISE_PATTERNS)
+    ]
+    return '\n'.join(filtered)
 
 
 # ---------------------------------------------------------------------------

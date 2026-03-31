@@ -246,33 +246,73 @@ EJEMPLO DE FORMATO CORRECTO (sustituye por frases reales sobre el tema):
 # ---------------------------------------------------------------------------
 
 def build_quiz_prompt(chunk: str, doc_title: str, language: str) -> str:
-    return f"""Eres un experto en evaluación académica.
+    return f"""Eres un profesor experto en evaluación académica universitaria.
 
-Genera preguntas de opción múltiple basadas ÚNICAMENTE en el contenido del fragmento.
+IDIOMA OBLIGATORIO: todas las preguntas, opciones y explicaciones en {language}.
 
-IDIOMA OBLIGATORIO: responde en {language}.
+PRE-FILTRO OBLIGATORIO:
+Si el fragmento es principalmente portada, índice, tabla de contenidos, bibliografía,
+agradecimientos, prólogo, metadatos editoriales o texto sin conceptos educativos:
+→ devuelve exactamente: {{"questions": []}}
 
-REGLAS:
-- Devuelve ÚNICAMENTE JSON válido.
-- Cada pregunta: "text", "options", "correct_index", "explanation".
-- "options": exactamente {QUIZ_OPTIONS_PER_QUESTION} opciones plausibles.
-- Solo 1 opción correcta. "correct_index": 0-3.
-- Genera entre 1 y 3 preguntas según el contenido disponible.
-- Si no hay contenido suficiente: {{"questions": []}}
+TAREA: genera entre 1 y 3 preguntas de test de alta calidad sobre el fragmento.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TIPOS DE PREGUNTA PERMITIDOS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✓ Definición: ¿qué es X? / ¿cómo se define X?
+✓ Relación: ¿cómo se relaciona X con Y? / ¿qué causa X?
+✓ Aplicación: ¿en qué situación se usa X? / ¿para qué sirve X?
+✓ Comparación: ¿en qué se diferencia X de Y?
+✓ Consecuencia: ¿qué ocurre cuando X? / ¿cuál es el efecto de X?
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROHIBICIONES ABSOLUTAS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✗ Preguntar sobre: autor, nombre del libro, editorial, año, ISBN, precio, página.
+✗ Preguntar datos que no aparezcan literalmente en el fragmento.
+✗ Preguntas con respuesta obvia o que no requieran comprensión.
+✗ Preguntas ambiguas o con más de una respuesta posiblemente correcta.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REGLAS PARA LAS OPCIONES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Exactamente {QUIZ_OPTIONS_PER_QUESTION} opciones por pregunta.
+• Solo 1 correcta e inequívoca.
+• Los 3 distractores: plausibles, relacionados con el tema, pero claramente incorrectos
+  si el estudiante entiende el concepto.
+• Longitud de opciones equilibrada: ninguna debe ser el doble de larga que las demás.
+• Estilo uniforme: todas las opciones deben tener la misma estructura gramatical.
+• PROHIBIDO en opciones: "todas las anteriores", "ninguna de las anteriores",
+  "no se menciona", opciones de una sola palabra, opciones absurdas.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EXPLICACIÓN OBLIGATORIA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Mínimo 20 palabras, máximo 50 palabras.
+• Debe parafrasear o citar el fragmento que justifica la respuesta correcta.
+• Debe indicar por qué la respuesta correcta es la única válida.
 
 DOCUMENTO: {doc_title}
 
 FRAGMENTO:
 {chunk}
 
-RESPUESTA (solo JSON):
+FORMATO JSON (sustituye los ejemplos por preguntas reales sobre el fragmento):
 {{
   "questions": [
     {{
-      "text": "...",
-      "options": ["...", "...", "...", "..."],
+      "text": "¿Cuál es la función principal de la memoria caché en un procesador?",
+      "options": [
+        "Almacenar temporalmente los datos de uso frecuente para acelerar el acceso.",
+        "Gestionar la comunicación directa entre el procesador y la tarjeta gráfica.",
+        "Regular el voltaje suministrado a los núcleos del procesador durante la ejecución.",
+        "Proporcionar almacenamiento persistente para los archivos del sistema operativo."
+      ],
       "correct_index": 0,
-      "explanation": "..."
+      "explanation": "El texto indica que la caché almacena los datos más usados cerca del procesador, reduciendo significativamente los tiempos de acceso respecto a la RAM principal.",
+      "topic": "Arquitectura de procesadores",
+      "difficulty": "media"
     }}
   ]
 }}"""
