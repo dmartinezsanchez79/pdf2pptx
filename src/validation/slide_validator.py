@@ -38,12 +38,12 @@ def build_cover(pdf_filename: str = "") -> Slide:
 
 
 def build_index(content_slides: list[Slide]) -> Slide:
-    """El índice lista los títulos de las diapositivas de desarrollo."""
-    bullets = [_fix_bullet(s.title) for s in content_slides]
+    """El índice lista exactamente los títulos de todas las diapositivas de desarrollo."""
+    bullets = [s.title for s in content_slides if s.title]
     return Slide(
         slide_type=SlideType.INDEX,
         title="Índice",
-        bullets=bullets[:MAX_BULLETS_PER_SLIDE],
+        bullets=bullets,
     )
 
 

@@ -246,7 +246,7 @@ EJEMPLO DE FORMATO CORRECTO (sustituye por frases reales sobre el tema):
 # ---------------------------------------------------------------------------
 
 def build_quiz_prompt(chunk: str, doc_title: str, language: str) -> str:
-    return f"""Eres un profesor experto en evaluación académica universitaria.
+    return f"""Eres un profesor experto en evaluación académica universitaria con amplia experiencia en diseño de tests de opción múltiple.
 
 IDIOMA OBLIGATORIO: todas las preguntas, opciones y explicaciones en {language}.
 
@@ -270,28 +270,43 @@ TIPOS DE PREGUNTA PERMITIDOS
 PROHIBICIONES ABSOLUTAS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ✗ Preguntar sobre: autor, nombre del libro, editorial, año, ISBN, precio, página.
-✗ Preguntar datos que no aparezcan literalmente en el fragmento.
-✗ Preguntas con respuesta obvia o que no requieran comprensión.
+✗ Preguntar datos que no aparezcan en el fragmento.
+✗ Preguntas con respuesta obvia que no requieran comprensión real.
 ✗ Preguntas ambiguas o con más de una respuesta posiblemente correcta.
+✗ Preguntas que se respondan leyendo literalmente una frase sin entender nada.
+✗ Preguntas del tipo "¿cuál ES UNA de las..." o "¿cuál PUEDE SER..." — siempre una única respuesta inequívoca.
+✗ Si el fragmento menciona varias aplicaciones/ventajas/usos de algo, NO preguntes "¿cuál es una aplicación de X?" porque varias opciones podrían ser correctas. En ese caso formula la pregunta de forma que solo una sea válida.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 REGLAS PARA LAS OPCIONES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 • Exactamente {QUIZ_OPTIONS_PER_QUESTION} opciones por pregunta.
-• Solo 1 correcta e inequívoca.
-• Los 3 distractores: plausibles, relacionados con el tema, pero claramente incorrectos
-  si el estudiante entiende el concepto.
-• Longitud de opciones equilibrada: ninguna debe ser el doble de larga que las demás.
-• Estilo uniforme: todas las opciones deben tener la misma estructura gramatical.
-• PROHIBIDO en opciones: "todas las anteriores", "ninguna de las anteriores",
-  "no se menciona", opciones de una sola palabra, opciones absurdas.
+• Solo 1 correcta, inequívoca y sin lugar a debate.
+• Los 3 distractores DEBEN seguir estas estrategias pedagógicas:
+    - Distractor 1: error conceptual común (confunde el concepto con otro relacionado).
+    - Distractor 2: verdadero en otro contexto pero incorrecto aquí.
+    - Distractor 3: parcialmente correcto pero incompleto o con un detalle erróneo.
+• Longitud equilibrada: ninguna opción debe ser claramente más larga o más corta que las demás.
+• Estructura gramatical idéntica en las 4 opciones (todas frases nominales, o todas verbales).
+• PROHIBIDO: "todas las anteriores", "ninguna de las anteriores", "no se menciona en el texto",
+  opciones de una sola palabra, opciones absurdas o descartables a simple vista.
+• La opción correcta NO debe ser siempre la más larga ni la más específica.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AUTOCOMPROBACIÓN ANTES DE RESPONDER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Antes de generar el JSON, verifica mentalmente:
+1. ¿Podría un estudiante que entiende el tema descartar los 3 distractores con seguridad?
+2. ¿Podría algún distractor considerarse también correcto? Si es así, cámbialo.
+3. ¿Las 4 opciones tienen longitud y estructura similares?
+4. ¿La explicación justifica por qué la correcta es la única válida?
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EXPLICACIÓN OBLIGATORIA
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• Mínimo 20 palabras, máximo 50 palabras.
-• Debe parafrasear o citar el fragmento que justifica la respuesta correcta.
-• Debe indicar por qué la respuesta correcta es la única válida.
+• Entre 20 y 50 palabras.
+• Cita o parafrasea el fragmento que justifica la respuesta correcta.
+• Explica brevemente por qué los distractores son incorrectos.
 
 DOCUMENTO: {doc_title}
 
@@ -302,16 +317,16 @@ FORMATO JSON (sustituye los ejemplos por preguntas reales sobre el fragmento):
 {{
   "questions": [
     {{
-      "text": "¿Cuál es la función principal de la memoria caché en un procesador?",
+      "text": "¿Cuál es la principal ventaja del aprendizaje no supervisado frente al supervisado?",
       "options": [
-        "Almacenar temporalmente los datos de uso frecuente para acelerar el acceso.",
-        "Gestionar la comunicación directa entre el procesador y la tarjeta gráfica.",
-        "Regular el voltaje suministrado a los núcleos del procesador durante la ejecución.",
-        "Proporcionar almacenamiento persistente para los archivos del sistema operativo."
+        "No requiere datos etiquetados previamente, por lo que funciona sin intervención humana.",
+        "Utiliza datos etiquetados para categorizar información nueva con mayor precisión.",
+        "Necesita que un experto valide cada resultado antes de aplicarlo en producción.",
+        "Solo puede aplicarse cuando el conjunto de datos contiene menos de mil registros."
       ],
       "correct_index": 0,
-      "explanation": "El texto indica que la caché almacena los datos más usados cerca del procesador, reduciendo significativamente los tiempos de acceso respecto a la RAM principal.",
-      "topic": "Arquitectura de procesadores",
+      "explanation": "El aprendizaje no supervisado descubre patrones sin necesidad de ejemplos etiquetados. Las otras opciones describen características del supervisado, de la validación manual y de una limitación inventada, respectivamente.",
+      "topic": "Aprendizaje automático",
       "difficulty": "media"
     }}
   ]

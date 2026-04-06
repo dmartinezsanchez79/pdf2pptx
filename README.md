@@ -10,6 +10,8 @@ Proyecto desarrollado como Trabajo de Fin de Grado de Ingeniería Informática.
 
 - Genera presentaciones `.pptx` con portada, índice, diapositivas de desarrollo y conclusiones.
 - Genera cuestionarios tipo test con preguntas de opción múltiple, distractores plausibles y explicaciones.
+- Extrae y convierte tablas del PDF a formato markdown para preservar su estructura.
+- Describe imágenes embebidas mediante un modelo multimodal local (LLaVA), insertando las descripciones en el lugar correcto del documento.
 - Funciona completamente **offline** — ningún dato sale de la máquina.
 - Compatible con cualquier modelo disponible en Ollama (llama3, mistral, gemma2, qwen2.5...).
 - Detecta automáticamente el idioma del documento y genera todo en ese idioma.
@@ -21,10 +23,14 @@ Proyecto desarrollado como Trabajo de Fin de Grado de Ingeniería Informática.
 
 - Python 3.10 o superior
 - [Ollama](https://ollama.com) instalado y ejecutándose (`ollama serve`)
-- Al menos un modelo descargado, por ejemplo:
+- Al menos un modelo de texto descargado, por ejemplo:
   ```bash
   ollama pull llama3.1:8b
   ollama pull mistral:7b
+  ```
+- Para descripción de imágenes (opcional pero recomendado):
+  ```bash
+  ollama pull llava-llama3:8b
   ```
 - GPU Nvidia recomendada para velocidad aceptable (CPU funciona pero es lento)
 
@@ -93,16 +99,19 @@ Flujo del quiz:
 | `gemma2:9b` | ~6 GB | Muy buena | Medio |
 | `qwen2.5:7b` | ~5 GB | Muy buena | Rápido |
 
+Para descripción de imágenes se usa siempre `llava-llama3:8b` independientemente del modelo de texto seleccionado.
+
 ---
 
 ## Tiempos estimados (RTX 3060, modo "ambos")
 
-| Tamaño PDF | Tiempo aprox. |
-|---|---|
-| ~10.000 chars (~8 páginas) | 2-3 min |
-| ~20.000 chars (~15 páginas) | 4-5 min |
-| ~30.000 chars (~25 páginas) | 7-9 min |
-| ~50.000 chars (~40 páginas) | 10-13 min |
+| Tamaño PDF | Imágenes | Tiempo aprox. |
+|---|---|---|
+| ~10.000 chars (~8 páginas) | 0 | 2-3 min |
+| ~20.000 chars (~15 páginas) | 0 | 4-5 min |
+| ~30.000 chars (~25 páginas) | 0 | 7-9 min |
+| ~50.000 chars (~40 páginas) | 0 | 10-13 min |
+| Cualquier tamaño | +1 imagen | +20-40 s/imagen |
 
 ---
 
@@ -112,6 +121,7 @@ Flujo del quiz:
 pdf2pptx/
 ├── app.py                          # Interfaz principal — generación PPTX y quiz
 ├── quiz_app.py                     # Interfaz del quiz interactivo (app separada)
+├── debug_extraction.py             # Script de depuración de extracción (desarrollo)
 ├── requirements.txt
 ├── assets/
 │   └── plantilla_universidad.pptx  # Plantilla institucional UCAM
@@ -123,7 +133,8 @@ pdf2pptx/
     ├── domain/
     │   └── models.py               # Dataclasses: Slide, Presentation, Question, Quiz...
     ├── extraction/
-    │   ├── pdf_reader.py           # Lectura del PDF con pdfplumber
+    │   ├── pdf_reader.py           # Lectura de texto y tablas del PDF con pdfplumber
+    │   ├── image_describer.py      # Extracción y descripción de imágenes con LLaVA
     │   ├── text_cleaner.py         # Limpieza, segmentación, chunking y clean_for_quiz
     │   └── language_detector.py    # Detección de idioma por frecuencia de stopwords
     ├── ai/
@@ -148,7 +159,8 @@ pdf2pptx/
 
 | Parámetro | Valor | Descripción |
 |---|---|---|
-| `OLLAMA_MODEL` | `llama3.1:8b` | Modelo por defecto |
+| `OLLAMA_MODEL` | `llama3.1:8b` | Modelo de texto por defecto |
+| `VISION_MODEL` | `llava-llama3:8b` | Modelo multimodal para descripción de imágenes |
 | `OLLAMA_TIMEOUT` | `120` s | Timeout por llamada |
 | `OLLAMA_MAX_RETRIES` | `3` | Reintentos si el JSON es inválido |
 | `CHUNK_SIZE` | `3000` | Caracteres por chunk |
@@ -167,8 +179,7 @@ pdf2pptx/
 ## Limitaciones conocidas
 
 - Solo procesa PDFs con texto digital seleccionable. Los PDFs escaneados no son compatibles.
-- Las imágenes embebidas en el PDF se ignoran completamente.
-- Las tablas se extraen como texto plano sin estructura de columnas.
+- La descripción de imágenes requiere que `llava-llama3:8b` esté disponible en Ollama. Si no está instalado, las imágenes se omiten sin error.
 - PDFs de más de ~42.000 caracteres se procesan parcialmente (últimas páginas ignoradas). Ajustable con `PDF_MAX_CHUNKS`.
 - La calidad del resultado depende del modelo usado y de la claridad del PDF de entrada.
 
@@ -177,7 +188,6 @@ pdf2pptx/
 ## Líneas de trabajo futuro
 
 - Soporte OCR para PDFs escaneados (`pytesseract` + `pdf2image`).
-- Extracción estructurada de tablas (`pdfplumber.extract_table()`).
-- Soporte de imágenes mediante modelos multimodales locales (LLaVA).
 - Evaluación comparativa automatizada entre modelos.
 - Exportación del quiz a otros formatos (Moodle XML, Anki).
+- Inclusión de imágenes descritas directamente en las diapositivas PPTX.

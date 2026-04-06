@@ -18,7 +18,9 @@ import time
 
 import ollama
 
-from config.settings import OLLAMA_MODEL, OLLAMA_HOST, OLLAMA_TIMEOUT, OLLAMA_MAX_RETRIES
+import base64
+
+from config.settings import OLLAMA_MODEL, OLLAMA_HOST, OLLAMA_TIMEOUT, OLLAMA_MAX_RETRIES, VISION_MODEL
 from src.ai.exceptions import OllamaConnectionError, OllamaResponseError, MaxRetriesExceeded
 
 
@@ -64,6 +66,30 @@ class OllamaClient:
             f"No se obtuvo JSON válido tras {self.max_retries} intentos. "
             f"Último error: {last_error}"
         )
+
+    def describe_image(self, image_bytes: bytes) -> str:
+        """
+        Envía una imagen al modelo de visión (LLaVA) y devuelve una descripción textual.
+        Usa VISION_MODEL independientemente del modelo de texto seleccionado.
+        Devuelve cadena vacía si falla para no interrumpir el pipeline.
+        """
+        prompt = (
+            "Describe detalladamente el contenido de esta imagen en español. "
+            "Si es un diagrama, gráfica o tabla: explica qué muestra y qué conclusiones se extraen. "
+            "Si es una fotografía: describe los elementos principales. "
+            "Responde siempre en español, independientemente del idioma de la imagen. "
+            "Responde solo con la descripción, sin introducción ni comentarios adicionales."
+        )
+        try:
+            response = self._client.generate(
+                model=VISION_MODEL,
+                prompt=prompt,
+                images=[base64.b64encode(image_bytes).decode()],
+                options={"temperature": 0.2},
+            )
+            return response.response.strip()
+        except Exception:
+            return ""
 
     # ------------------------------------------------------------------
     # Helpers privados

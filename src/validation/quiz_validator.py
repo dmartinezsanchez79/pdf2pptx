@@ -17,6 +17,7 @@ from config.settings import QUIZ_OPTIONS_PER_QUESTION, QUIZ_MIN_QUESTIONS, QUIZ_
 
 _MIN_QUESTION_CHARS = 25    # texto mínimo de la pregunta
 _MIN_OPTION_CHARS = 8       # longitud mínima de cada opción
+_MAX_OPTION_CHARS = 200     # opción demasiado larga = párrafo, no distractor
 _MIN_EXPLANATION_CHARS = 20 # explicación mínima
 _MAX_OPTION_LENGTH_RATIO = 3.0  # la opción más larga no puede ser 3x la más corta
 
@@ -30,6 +31,14 @@ _TRIVIAL_PATTERNS = [
     r'\bnúmero de (página|capítulo|edición)\b',
     r'\bprólogo\b|\bagradecimiento\b',
     r'\bcuántas páginas\b|\bcuántos capítulos\b',
+    # Preguntas biográficas sobre personas nombradas
+    r'¿qué (hace|hizo|es|fue|escribió|publicó|impartió)\s+\w+\s+\w+',
+    r'¿quién (es|fue|escribió|publicó|desarrolló|creó|es el autor)',
+    r'¿(cuál|qué).{0,30}(nombre del|nombre de la|se llama|se titula|se denomina)',
+    # Preguntas sobre libros/obras ajenos mencionados de pasada
+    r'¿(qué|cuál).{0,40}(libro|obra|publicación).{0,20}(trata|habla|menciona|describe)',
+    # Preguntas sobre el propio documento
+    r'¿(qué|cuál|cuánto).{0,30}(este libro|este documento|este texto|el libro)',
 ]
 
 # Frases prohibidas en cualquier opción
@@ -145,6 +154,8 @@ def _fix_options(options: list) -> list[str] | None:
     for opt in cleaned:
         if len(opt) < _MIN_OPTION_CHARS:
             return None
+        if len(opt) > _MAX_OPTION_CHARS:
+            return None
         if _is_banned_option(opt):
             return None
         if _has_corrupt_content(opt):
@@ -153,12 +164,35 @@ def _fix_options(options: list) -> list[str] | None:
     if _options_too_unbalanced(cleaned):
         return None
 
+    if _options_look_like_chapter_titles(cleaned):
+        return None
+
     return cleaned
 
 
 def _is_banned_option(option: str) -> bool:
     normalized = option.lower().strip()
     return any(phrase in normalized for phrase in _BANNED_OPTION_PHRASES)
+
+
+def _options_look_like_chapter_titles(options: list[str]) -> bool:
+    """
+    Detecta cuando las opciones son títulos de capítulos o secciones del índice
+    en lugar de respuestas reales. Síntoma: todas empiezan por el mismo verbo
+    conjugado ("Cambiará X", "Describe Y") o tienen estructura de enumeración temática
+    sin ser frases explicativas.
+    """
+    # Si todas las opciones empiezan con la misma palabra es sospechoso
+    first_words = [o.split()[0].lower() for o in options if o.split()]
+    if len(set(first_words)) == 1:
+        return True
+
+    # Si las opciones son todas muy cortas y parecen etiquetas (< 6 palabras)
+    short_count = sum(1 for o in options if len(o.split()) < 5)
+    if short_count >= 3:
+        return True
+
+    return False
 
 
 def _options_too_unbalanced(options: list[str]) -> bool:

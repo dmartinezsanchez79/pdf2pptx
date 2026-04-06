@@ -26,7 +26,7 @@ def read_pdf(path: str | Path) -> ExtractedDocument:
     if not pdf_path.exists():
         raise FileNotFoundError(f"No se encontró el archivo: {pdf_path}")
 
-    pages_text = _extract_pages(pdf_path)
+    pages_text = extract_pages(pdf_path)
 
     if not any(pages_text):
         raise ValueError(
@@ -45,14 +45,48 @@ def read_pdf(path: str | Path) -> ExtractedDocument:
 # Helpers privados
 # ---------------------------------------------------------------------------
 
-def _extract_pages(pdf_path: Path) -> list[str]:
-    """Extrae el texto de cada página como lista de strings."""
+def extract_pages(pdf_path: Path) -> list[str]:
+    """Extrae el texto de cada página, incluyendo tablas formateadas como markdown."""
     pages: list[str] = []
     with pdfplumber.open(pdf_path) as pdf:
         for page in pdf.pages:
             text = page.extract_text() or ""
-            pages.append(text.strip())
+            tables_md = _extract_tables_as_markdown(page)
+            page_content = text.strip()
+            if tables_md:
+                page_content = (page_content + "\n\n" + tables_md).strip()
+            pages.append(page_content)
     return pages
+
+
+def _extract_tables_as_markdown(page) -> str:
+    """
+    Extrae todas las tablas de una página y las convierte a formato markdown.
+    Ignora tablas vacías o con una sola celda.
+    """
+    tables = page.extract_tables() or []
+    md_blocks: list[str] = []
+
+    for table in tables:
+        if not table or len(table) < 2:
+            continue
+        # Limpiar celdas nulas
+        cleaned = [
+            [cell.strip() if cell else "" for cell in row]
+            for row in table
+        ]
+        header = cleaned[0]
+        rows = cleaned[1:]
+        if not any(header) or not rows:
+            continue
+
+        # Construir tabla markdown
+        sep = "| " + " | ".join("---" for _ in header) + " |"
+        header_line = "| " + " | ".join(header) + " |"
+        row_lines = ["| " + " | ".join(row) + " |" for row in rows]
+        md_blocks.append("\n".join([header_line, sep] + row_lines))
+
+    return "\n\n".join(md_blocks)
 
 
 def _infer_title(pages_text: list[str]) -> str:

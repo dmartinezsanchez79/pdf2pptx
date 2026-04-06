@@ -9,6 +9,8 @@ Patrón Map-Reduce:
   5. Validación, deduplicación y límite de preguntas.
 """
 
+import re
+
 from src.domain.models import ExtractedDocument, Question, Quiz
 from src.ai.ollama_client import OllamaClient
 from src.ai.prompt_builder import build_quiz_prompt
@@ -83,6 +85,8 @@ def _is_quiz_worthy(chunk: str) -> bool:
     Descarta chunks que no tienen sustancia pedagógica:
     - Demasiado cortos (portada, índice de una sola entrada).
     - Líneas muy cortas en promedio (tabla de contenidos, listas de datos).
+    - Alta densidad de entradas de índice (líneas que terminan en número de página).
+    - Alta densidad de nombres propios sin contenido conceptual (contraportada/bio).
     """
     words = chunk.split()
     if len(words) < _MIN_CHUNK_WORDS:
@@ -94,6 +98,20 @@ def _is_quiz_worthy(chunk: str) -> bool:
 
     avg_line_len = sum(len(l) for l in lines) / len(lines)
     if avg_line_len < _MIN_AVG_LINE_LENGTH:
+        return False
+
+    # Rechazar si >25% de líneas parecen entradas de índice (terminan en número de página)
+    toc_lines = sum(1 for l in lines if re.search(r'[\.\s]{3,}\d{1,4}\s*$', l))
+    if toc_lines / len(lines) > 0.25:
+        return False
+
+    # Rechazar si el chunk contiene principalmente frases de contraportada/bio
+    # (menciones a libros ajenos, premios, países visitados como ponente)
+    back_cover_hits = sum(1 for l in lines if re.search(
+        r'\bautor(a)? de\b|\bcoautor\b|\bha impartido\b|\bseminarios?\b|\bconferenci',
+        l, re.IGNORECASE
+    ))
+    if back_cover_hits >= 2:
         return False
 
     return True

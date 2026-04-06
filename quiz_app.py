@@ -76,10 +76,15 @@ def _reset_state() -> None:
 def _render_start(quiz: Quiz, meta: dict) -> None:
     st.markdown("## 🧠 Quiz interactivo")
 
-    if meta.get("pdf_name"):
-        st.caption(f"📄 {meta['pdf_name']}  |  🤖 {meta.get('model', '')}")
+    pdf_name = meta.get("pdf_name", "")
+    model_name = meta.get("model", "")
 
-    st.markdown(f"### {quiz.title}")
+    if pdf_name:
+        st.caption(f"📄 {pdf_name}  |  🤖 {model_name}")
+        st.markdown(f"### Quiz generado a partir de **{pdf_name}**")
+    else:
+        st.markdown("### Quiz interactivo")
+
     st.markdown("---")
 
     col1, col2 = st.columns(2)

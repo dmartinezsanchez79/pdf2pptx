@@ -33,6 +33,11 @@ CHUNK_SIZE: int = 3_000            # caracteres por chunk enviado al modelo
 CHUNK_OVERLAP: int = 200           # solapamiento entre chunks para no perder contexto en los cortes
 PDF_MAX_CHUNKS: int = 15           # máximo de chunks a procesar (cubre PDFs de ~55 páginas)
 
+# --- Visión (tablas e imágenes) ---
+VISION_MODEL: str = "llava-llama3:8b"  # modelo multimodal para describir imágenes
+VISION_MIN_IMAGE_WIDTH: int = 150      # ignorar imágenes más pequeñas (logos, iconos decorativos)
+VISION_MIN_IMAGE_HEIGHT: int = 150
+
 # --- Plantilla PPTX ---
 TEMPLATE_PATH: str = "assets/plantilla_universidad.pptx"
 

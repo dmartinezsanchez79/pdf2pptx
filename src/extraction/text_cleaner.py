@@ -131,7 +131,8 @@ def _remove_urls(text: str) -> str:
 def _remove_metadata_lines(text: str) -> str:
     """
     Elimina líneas que contienen metadatos editoriales sin valor pedagógico:
-    ISBN, precios, derechos de autor, editoriales, números de depósito legal.
+    ISBN, precios, derechos de autor, editoriales, números de depósito legal,
+    bios de autor, citas de contraportada.
     """
     _META_PATTERNS = [
         r'ISBN[\s\-:]?\d',
@@ -143,6 +144,11 @@ def _remove_metadata_lines(text: str) -> str:
         r'\beditorial\b.{0,40}\bS\.?A\.?\b',
         r'Reservados todos los derechos',
         r'queda prohibida la reproducción',
+        r'\bcoautor\b|\bautor de\b|\bautora de\b',       # bios de autor
+        r'\bha impartido\b|\bha publicado\b|\bha escrito\b',  # bio estilo CV
+        r'\bconferenci(ante|as)\b|\bseminarios?\b.{0,30}\bpaíses?\b',  # bio de ponente
+        r'\w+_FIN\b',                                    # artefactos de exportadores PDF (nombrearchivo_FIN)
+        r'^\s*\d{1,2}/\d{1,2}/\d{2,4}\s*$',            # fechas aisladas
     ]
     lines = text.splitlines()
     filtered = [
@@ -156,20 +162,22 @@ def _remove_noise_lines(text: str) -> str:
     """
     Elimina líneas que son claramente ruido:
     solo números, teléfonos, líneas de 1-2 palabras aisladas,
-    líneas que son solo puntuación o símbolos.
+    líneas que son solo puntuación o símbolos, entradas de índice/sumario.
     """
     _NOISE_PATTERNS = [
-        r'^[\d\s\.\-\(\)\/\+]+$',          # solo números y símbolos
-        r'^tel[éefono]*[\s\.:]+[\d\s\-\+\(\)]+',  # teléfonos
-        r'^fax[\s\.:]+[\d\s\-\+\(\)]+',    # fax
-        r'^\s*https?://',                   # URL como línea
-        r'^\s*www\.',                       # web como línea
-        r'^[•·\-–—\*]+\s*$',               # solo viñetas o guiones
+        r'^[\d\s\.\-\(\)\/\+]+$',               # solo números y símbolos
+        r'^tel[éefono]*[\s\.:]+[\d\s\-\+\(\)]+', # teléfonos
+        r'^fax[\s\.:]+[\d\s\-\+\(\)]+',          # fax
+        r'^\s*https?://',                         # URL como línea
+        r'^\s*www\.',                             # web como línea
+        r'^[•·\-–—\*]+\s*$',                     # solo viñetas o guiones
+        r'[\.\s]{4,}\d{1,4}\s*$',               # entrada de índice: "Capítulo . . . . 42"
+        r'^\d+(\.\d+)*\s+.{5,60}[\.\s]{4,}\d+\s*$',  # "1. Título . . . . 15"
     ]
     lines = text.splitlines()
     filtered = [
         line for line in lines
-        if not any(re.match(p, line.strip(), re.IGNORECASE) for p in _NOISE_PATTERNS)
+        if not any(re.search(p, line.strip(), re.IGNORECASE) for p in _NOISE_PATTERNS)
     ]
     return '\n'.join(filtered)
 

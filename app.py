@@ -17,6 +17,7 @@ import streamlit as st
 
 from config.settings import OLLAMA_MODEL
 from src.extraction.pdf_reader import read_pdf
+from src.extraction.image_describer import enrich_with_vision
 from src.ai.ollama_client import OllamaClient
 from src.ai.exceptions import OllamaConnectionError, MaxRetriesExceeded
 from src.generation.presentation_service import PresentationService
@@ -58,14 +59,11 @@ def _read_uploaded_pdf(uploaded_file) -> tuple:
         tmp_path = Path(tmp.name)
     try:
         document = read_pdf(tmp_path)
-        # Sobreescribir el filename con el nombre real del PDF subido por el usuario,
-        # no el nombre del fichero temporal generado por el sistema.
         document.filename = Path(uploaded_file.name).stem
-        return document, None
+        return document, tmp_path, None
     except Exception as e:
-        return None, str(e)
-    finally:
         tmp_path.unlink(missing_ok=True)
+        return None, None, str(e)
 
 
 def _generate_pptx(client: OllamaClient, document) -> tuple:
@@ -171,15 +169,25 @@ if generate and uploaded:
     client = OllamaClient(model=selected_model)
 
     with st.spinner("Leyendo PDF..."):
-        document, error = _read_uploaded_pdf(uploaded)
+        document, tmp_pdf_path, error = _read_uploaded_pdf(uploaded)
 
     if error:
         st.error(f"Error al leer el PDF: {error}")
         st.stop()
 
+    with st.spinner("Analizando imágenes con visión IA... (puede omitirse si LLaVA no está disponible)"):
+        try:
+            document, n_images = enrich_with_vision(document, tmp_pdf_path, client)
+        except Exception:
+            n_images = 0
+        finally:
+            if tmp_pdf_path and tmp_pdf_path.exists():
+                tmp_pdf_path.unlink(missing_ok=True)
+
+    vision_note = f", {n_images} imagen(es) descritas" if n_images > 0 else ""
     st.info(
         f"**{document.title}** — {len(document.sections)} secciones, "
-        f"{len(document.raw_text):,} caracteres"
+        f"{len(document.raw_text):,} caracteres{vision_note}"
     )
 
     generate_pptx = mode in ("pptx", "ambos")
