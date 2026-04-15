@@ -6,11 +6,12 @@ y devolver un ExtractedDocument con el texto bruto y las secciones detectadas.
 No limpia ni segmenta: eso lo hace text_cleaner.
 """
 
+import re
 from pathlib import Path
 
 import pdfplumber
 
-from src.domain.models import DocumentSection, ExtractedDocument
+from src.domain.models import ExtractedDocument
 from src.extraction.text_cleaner import clean_and_segment
 
 
@@ -35,7 +36,7 @@ def read_pdf(path: str | Path) -> ExtractedDocument:
         )
 
     raw_text = "\n\n".join(t for t in pages_text if t)
-    title = _infer_title(pages_text)
+    title = _title_from_filename(pdf_path.stem)
     sections = clean_and_segment(raw_text)
 
     return ExtractedDocument(title=title, sections=sections, raw_text=raw_text, filename=pdf_path.stem)
@@ -89,19 +90,16 @@ def _extract_tables_as_markdown(page) -> str:
     return "\n\n".join(md_blocks)
 
 
-def _infer_title(pages_text: list[str]) -> str:
+def _title_from_filename(stem: str) -> str:
     """
-    Intenta deducir el título del documento a partir de la primera página.
-    Usa la primera línea no vacía de la primera página como título.
-    Si no hay nada, devuelve un título genérico.
+    Genera el título a partir del nombre del archivo (sin extensión).
+
+    Inserta espacios antes de cada mayúscula en nombres CamelCase
+    (e.g. "InteligenciaArtificial" → "Inteligencia Artificial")
+    y reemplaza guiones bajos/guiones por espacios.
     """
-    if not pages_text:
-        return "Documento sin título"
-
-    first_page = pages_text[0]
-    for line in first_page.splitlines():
-        stripped = line.strip()
-        if stripped:
-            return stripped[:120]  # recortamos si es demasiado largo
-
-    return "Documento sin título"
+    # Separar CamelCase
+    title = re.sub(r'(?<=[a-záéíóúñ])(?=[A-ZÁÉÍÓÚÑ])', ' ', stem)
+    # Reemplazar guiones y guiones bajos por espacios
+    title = title.replace('_', ' ').replace('-', ' ')
+    return title.strip() or "Documento sin título"

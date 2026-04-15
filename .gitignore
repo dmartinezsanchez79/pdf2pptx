@@ -20,6 +20,12 @@ output/
 # PDFs subidos (privacidad)
 *.pdf
 
+# Benchmark — resultados generados y PDFs de test
+benchmark/results/
+benchmark/reports/*.csv
+benchmark/reports/*.txt
+benchmark/dataset/pdfs/
+
 # IDEs
 .vscode/
 .idea/

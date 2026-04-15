@@ -16,13 +16,13 @@ Resultado final: portada → índice → desarrollo → conclusión.
 
 from src.domain.models import ExtractedDocument, Presentation, Slide, SlideType
 from src.ai.ollama_client import OllamaClient
-from src.ai.prompt_builder import build_section_content_prompt, build_conclusion_prompt
+from src.ai.prompt_builder import build_section_content_prompt, build_conclusion_prompt, build_enrich_prompt
 from src.generation.document_analyzer import analyze, find_relevant_context
 from src.generation.slide_normalizer import normalize, split_large_slides
 from src.validation.slide_validator import (
     validate_slide, build_cover, build_index, build_conclusion,
 )
-from config.settings import MAX_CONTENT_SLIDES
+from config.settings import MAX_CONTENT_SLIDES, MIN_BULLETS_PER_SLIDE, MAX_BULLETS_PER_SLIDE
 
 
 class PresentationService:
@@ -113,4 +113,29 @@ class PresentationService:
         if not bullets:
             bullets = ["Consulta el documento original para más detalles."]
 
-        return build_conclusion(bullets)
+        conclusion = build_conclusion(bullets)
+
+        # Enriquecer si tiene menos viñetas que el mínimo (misma regla que desarrollo)
+        if conclusion.bullet_count() < MIN_BULLETS_PER_SLIDE:
+            conclusion = self._enrich_conclusion(conclusion, doc_title, language)
+
+        return conclusion
+
+    def _enrich_conclusion(
+        self, conclusion: Slide, doc_title: str, language: str
+    ) -> Slide:
+        """Añade viñetas a la conclusión si no alcanza el mínimo."""
+        needed = MIN_BULLETS_PER_SLIDE - conclusion.bullet_count()
+        prompt = build_enrich_prompt(
+            conclusion.title, conclusion.bullets, needed, doc_title, language,
+        )
+        try:
+            data = self._client.generate_json(prompt)
+            new_bullets = [
+                b for b in data.get("bullets", [])
+                if isinstance(b, str) and b.strip()
+            ]
+            all_bullets = conclusion.bullets + new_bullets
+            return build_conclusion(all_bullets[:MAX_BULLETS_PER_SLIDE])
+        except Exception:
+            return conclusion

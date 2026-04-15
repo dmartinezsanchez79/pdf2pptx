@@ -226,11 +226,11 @@ Se descartan preguntas si:
 
 **Justificación:** produce respuestas más deterministas y con mejor adherencia al formato JSON. Valores altos aumentan creatividad pero también la tasa de JSON malformados.
 
-### 6.6 Portada con título fijo
+### 6.6 Título derivado del nombre del archivo
 
-**Decisión:** la portada siempre muestra "Resumen del documento" como título y "Presentación generada a partir de {nombre_pdf}" como subtítulo.
+**Decisión:** el título del documento se deriva del nombre del archivo PDF (sin extensión), separando el CamelCase en palabras (`InteligenciaArtificial` → `Inteligencia Artificial`). Implementado en `pdf_reader._title_from_filename()`.
 
-**Justificación:** el título inferido del PDF suele ser la primera línea del texto, que puede ser el nombre del autor, un encabezado de página o texto parcial. Un título fijo garantiza coherencia visual. El nombre del PDF se propaga desde `uploaded_file.name` para mostrar el nombre real, no el nombre del fichero temporal que crea Streamlit.
+**Justificación:** el título inferido del texto del PDF (primera línea) suele ser el nombre del autor, un encabezado de página o texto parcial corrupto — no el título real del documento. El nombre del archivo es siempre semánticamente correcto y limpio. La conversión CamelCase garantiza legibilidad en la portada del PPTX y en el título del quiz.
 
 ### 6.7 Viñetas garantizadas completas
 
@@ -329,10 +329,108 @@ Para un PDF de ~20.000 chars (7 chunks), modo "ambos", sin imágenes:
 | 17 | Descripción de imágenes con LLaVA (`image_describer.py`, pymupdf) |
 | 18 | Fix índice PPTX: títulos exactos y completos sin truncar |
 | 19 | Mejoras avanzadas de calidad del quiz: filtro TOC/bio, distractores tipificados, autocomprobación en prompt, validación de longitud de opciones |
+| 20 | Sistema de benchmark: ejecución por lotes, métricas automatizadas, evaluación subjetiva con rúbricas y IA externa |
+| 21 | Título derivado del nombre del archivo (CamelCase → palabras); prompts de evaluación sin extracto de texto (el evaluador adjunta el PDF directamente) |
+| 22 | Conclusión obligatoria con 4-5 viñetas (mismas reglas que desarrollo); auditoría de código: eliminación de imports y constantes muertas, precompilación de regex, imports movidos a top-level |
 
 ---
 
-## 11. Dependencias principales
+## 11. Sistema de benchmark y evaluación
+
+### Objetivo
+
+Experimento controlado: N PDFs representativos × M modelos Ollama → métricas objetivas automatizadas + evaluación subjetiva con rúbricas.
+
+### Diseño del experimento
+
+- **5 PDFs** académicos en español sobre distintas áreas de informática: Inteligencia Artificial (22p, imágenes), Java (10p, imágenes), Programación Orientada a Objetos (15p, imágenes+tablas), Bases de Datos Distribuidas (22p, imágenes), Fundamentos de Big Data (21p, imágenes).
+- **5 modelos** de distinto tamaño y origen (llama3.2:3b, gemma3:4b, mistral:7b, qwen2.5:7b, gemma2:9b).
+- **25 ejecuciones** totales (5×5), cada una genera PPTX + quiz + JSON de métricas.
+
+### Métricas objetivas (automatizadas por script)
+
+| Categoría | Métricas |
+|---|---|
+| **PPTX** | slides totales, slides de desarrollo, media viñetas/slide, % slides en rango 4-5, longitud media viñeta, coherencia índice↔slides |
+| **Quiz** | preguntas generadas, preguntas válidas, tasa de supervivencia, diversidad temática, balance longitud opciones, tasa de explicaciones |
+| **Rendimiento** | tiempo total, tiempo PPTX, tiempo quiz, llamadas al modelo, reintentos, JSON success rate |
+
+### Métricas subjetivas (evaluación humana + IA externa)
+
+| Métrica | Evaluador | Escala |
+|---|---|---|
+| Relevancia del contenido PPTX | Humano + IA | 1-5 |
+| Coherencia del discurso PPTX | Humano + IA | 1-5 |
+| Completitud/cobertura PPTX | Humano | 1-5 |
+| Calidad pedagógica del quiz | Humano + IA | 1-5 |
+| Plausibilidad de distractores | Humano + IA | 1-5 |
+| Correctitud de respuestas del quiz | Humano | Sí/No |
+
+### Protocolo de evaluación subjetiva
+
+1. Evaluación manual de 5 muestras (1 por modelo) como referencia gold standard.
+2. Evaluación con IA externa (ChatGPT/Gemini) de las 25 ejecuciones: se adjunta el PDF original + se pega el prompt del archivo `eval_prompts/*_eval.txt`. Los prompts no incluyen extracto de texto ya que el evaluador dispone del PDF completo.
+3. Medición de concordancia humano↔IA en las 5 muestras comunes.
+4. Si concordancia ≤±1 punto, la IA se usa como juez complementario documentando la concordancia.
+
+### Arquitectura del benchmark
+
+```
+benchmark/
+├── run_benchmark.py          # Orquestador: N PDFs × M modelos
+├── config.py                 # Modelos, rutas, parámetros
+├── metrics/
+│   ├── pptx_metrics.py       # Métricas automatizadas del PPTX
+│   ├── quiz_metrics.py       # Métricas automatizadas del quiz
+│   └── model_metrics.py      # InstrumentedClient + ModelMetrics
+├── evaluation/
+│   ├── rubrics.py            # 5 rúbricas con escala 1-5
+│   ├── ai_evaluator.py       # Generador de prompts para IA externa
+│   └── manual_template.py    # Generador de CSV para evaluación manual
+├── reports/
+│   └── generate_report.py    # CSV resumen, medias por modelo, texto
+├── results/                  # JSONs individuales, PPTX, quizzes, prompts eval
+└── dataset/
+    ├── catalog.json          # Catálogo de PDFs con metadatos
+    └── pdfs/                 # PDFs de test
+```
+
+### Ejecución
+
+```bash
+# Benchmark completo (25 ejecuciones)
+python -m benchmark.run_benchmark
+
+# Subconjunto filtrado
+python -m benchmark.run_benchmark --models gemma3:4b mistral:7b --pdfs pdf_01 pdf_02
+```
+
+### Outputs generados
+
+| Archivo | Contenido |
+|---|---|
+| `results/result_{pdf}_{model}_rep1.json` | Métricas completas de una ejecución |
+| `results/{pdf}_{model}_rep1.pptx` | PPTX generado |
+| `results/{pdf}_{model}_rep1_quiz.json` | Quiz generado |
+| `results/eval_prompts/*_eval.txt` | Prompts listos para IA externa |
+| `reports/benchmark_summary.csv` | 1 fila por ejecución, todas las métricas |
+| `reports/model_averages.csv` | Medias por modelo |
+| `reports/manual_evaluation.csv` | Plantilla para rellenar evaluación manual |
+| `reports/rubric_reference.txt` | Rúbricas de referencia para el evaluador |
+
+### Criterios de aceptación (congelación de versión)
+
+| Criterio | Umbral |
+|---|---|
+| Preguntas válidas por PDF (≥10 páginas) | ≥5 |
+| Slides de desarrollo por PDF | ≥4 |
+| Tiempo total (modo ambos, ≤30 páginas) | ≤15 min |
+| JSON success rate | ≥70% |
+| Ejecuciones completadas sin error | ≥80% (20/25) |
+
+---
+
+## 12. Dependencias principales
 
 | Librería | Versión mínima | Uso |
 |---|---|---|
@@ -344,11 +442,11 @@ Para un PDF de ~20.000 chars (7 chunks), modo "ambos", sin imágenes:
 
 ---
 
-## 12. Métricas del proyecto
+## 13. Métricas del proyecto
 
-- **Líneas de código totales:** ~3.100
-- **Líneas de código puro:** ~2.000 (65%)
-- **Líneas de comentarios/docstrings:** ~400 (13%)
-- **Líneas en blanco:** ~700 (22%)
-- **Ficheros Python:** 18 (sin contar `__init__.py`)
+- **Líneas de código totales:** ~4.100
+- **Ficheros Python:** 28 (sin contar `__init__.py`)
 - **Ficheros de lógica de negocio** (`src/`): 14
+- **Ficheros de benchmark** (`benchmark/`): 8
+- **Ficheros de interfaz y utilidades** (raíz): 3 (`app.py`, `quiz_app.py`, `debug_extraction.py`)
+- **Ficheros de configuración**: 3 (`config/settings.py`, `benchmark/config.py`, `requirements.txt`)

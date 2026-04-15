@@ -24,6 +24,18 @@ from config.settings import OLLAMA_MODEL, OLLAMA_HOST, OLLAMA_TIMEOUT, OLLAMA_MA
 from src.ai.exceptions import OllamaConnectionError, OllamaResponseError, MaxRetriesExceeded
 
 
+def _ensure_dict(parsed) -> dict:
+    """Garantiza que el resultado del parseo JSON sea un dict.
+    Algunos modelos devuelven una lista con un dict dentro ([{...}])."""
+    if isinstance(parsed, dict):
+        return parsed
+    if isinstance(parsed, list):
+        for item in parsed:
+            if isinstance(item, dict):
+                return item
+    raise OllamaResponseError("El JSON parseado no es un diccionario.")
+
+
 class OllamaClient:
     """Wrapper sobre la librería ollama con reintentos y extracción de JSON."""
 
@@ -37,6 +49,9 @@ class OllamaClient:
         self.model = model
         self.max_retries = max_retries
         self._client = ollama.Client(host=host, timeout=timeout)
+        # Contadores para benchmark (se leen externamente, no afectan lógica)
+        self.total_calls: int = 0
+        self.total_retries: int = 0
 
     # ------------------------------------------------------------------
     # API pública
@@ -54,10 +69,13 @@ class OllamaClient:
         for attempt in range(1, self.max_retries + 1):
             try:
                 raw = self._call_model(prompt)
-                return self._parse_json(raw)
+                result = self._parse_json(raw)
+                self.total_calls += 1
+                return result
             except OllamaConnectionError:
                 raise  # No tiene sentido reintentar si Ollama no está corriendo
             except OllamaResponseError as e:
+                self.total_retries += 1
                 last_error = e
                 if attempt < self.max_retries:
                     time.sleep(1)  # pausa breve antes de reintentar
@@ -120,24 +138,25 @@ class OllamaClient:
         """
         # Intento directo
         try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
+            parsed = json.loads(raw)
+            return _ensure_dict(parsed)
+        except (json.JSONDecodeError, OllamaResponseError):
             pass
 
         # Buscar bloque ```json ... ```
         match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, re.DOTALL)
         if match:
             try:
-                return json.loads(match.group(1))
-            except json.JSONDecodeError:
+                return _ensure_dict(json.loads(match.group(1)))
+            except (json.JSONDecodeError, OllamaResponseError):
                 pass
 
         # Buscar el primer { ... } del texto
         match = re.search(r"\{.*\}", raw, re.DOTALL)
         if match:
             try:
-                return json.loads(match.group())
-            except json.JSONDecodeError:
+                return _ensure_dict(json.loads(match.group()))
+            except (json.JSONDecodeError, OllamaResponseError):
                 pass
 
         raise OllamaResponseError(

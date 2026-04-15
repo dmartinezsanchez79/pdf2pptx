@@ -21,8 +21,8 @@ _MAX_OPTION_CHARS = 200     # opción demasiado larga = párrafo, no distractor
 _MIN_EXPLANATION_CHARS = 20 # explicación mínima
 _MAX_OPTION_LENGTH_RATIO = 3.0  # la opción más larga no puede ser 3x la más corta
 
-# Patrones que delatan preguntas triviales o sobre metadatos
-_TRIVIAL_PATTERNS = [
+# Patrones que delatan preguntas triviales o sobre metadatos (precompilados)
+_TRIVIAL_PATTERNS = [re.compile(p) for p in [
     r'\bautor(es)?\b',
     r'\btítulo del (libro|documento|texto|capítulo)\b',
     r'\baño de publicación\b|\bfecha de publicación\b|\bfecha de edición\b',
@@ -39,7 +39,7 @@ _TRIVIAL_PATTERNS = [
     r'¿(qué|cuál).{0,40}(libro|obra|publicación).{0,20}(trata|habla|menciona|describe)',
     # Preguntas sobre el propio documento
     r'¿(qué|cuál|cuánto).{0,30}(este libro|este documento|este texto|el libro)',
-]
+]]
 
 # Frases prohibidas en cualquier opción
 _BANNED_OPTION_PHRASES = {
@@ -54,14 +54,14 @@ _BANNED_OPTION_PHRASES = {
     "ninguna es correcta",
 }
 
-# Patrones de contenido corrupto en preguntas u opciones
-_CORRUPT_PATTERNS = [
+# Patrones de contenido corrupto en preguntas u opciones (precompilados)
+_CORRUPT_PATTERNS = [re.compile(p, re.IGNORECASE) for p in [
     r'https?://',
     r'www\.\S+',
     r'\bISBN[\s\-:]?\d',
     r'[^\x00-\xFF]{3,}',    # muchos caracteres no-ASCII seguidos (encoding roto)
     r'\?\?\?|\.\.\.',        # placeholders del modelo
-]
+]]
 
 
 def validate_question(q: Question) -> Question | None:
@@ -124,12 +124,12 @@ def has_enough_questions(quiz: Quiz) -> bool:
 def _is_trivial(question_text: str) -> bool:
     """Detecta preguntas sobre metadatos o información editorial sin valor pedagógico."""
     text_lower = question_text.lower()
-    return any(re.search(p, text_lower) for p in _TRIVIAL_PATTERNS)
+    return any(p.search(text_lower) for p in _TRIVIAL_PATTERNS)
 
 
 def _has_corrupt_content(text: str) -> bool:
     """Detecta URLs, ISBN, placeholders o encoding roto en el texto."""
-    return any(re.search(p, text, re.IGNORECASE) for p in _CORRUPT_PATTERNS)
+    return any(p.search(text) for p in _CORRUPT_PATTERNS)
 
 
 def _fix_options(options: list) -> list[str] | None:

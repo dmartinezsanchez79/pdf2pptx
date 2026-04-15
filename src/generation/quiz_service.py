@@ -29,6 +29,8 @@ class QuizService:
 
     def __init__(self, client: OllamaClient) -> None:
         self._client = client
+        # Contadores para benchmark (no afectan lógica)
+        self.questions_before_validation: int = 0
 
     def generate(self, document: ExtractedDocument) -> Quiz:
         """Genera un Quiz completo a partir de un ExtractedDocument."""
@@ -69,6 +71,7 @@ class QuizService:
             q = _parse_question(item)
             if q is None:
                 continue
+            self.questions_before_validation += 1
             validated = validate_question(q)
             if validated is not None:
                 questions.append(validated)

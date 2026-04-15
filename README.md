@@ -13,7 +13,7 @@ Proyecto desarrollado como Trabajo de Fin de Grado de Ingeniería Informática.
 - Extrae y convierte tablas del PDF a formato markdown para preservar su estructura.
 - Describe imágenes embebidas mediante un modelo multimodal local (LLaVA), insertando las descripciones en el lugar correcto del documento.
 - Funciona completamente **offline** — ningún dato sale de la máquina.
-- Compatible con cualquier modelo disponible en Ollama (llama3, mistral, gemma2, qwen2.5...).
+- Compatible con cualquier modelo disponible en Ollama (llama3, mistral, gemma2, gemma3, qwen2.5...).
 - Detecta automáticamente el idioma del documento y genera todo en ese idioma.
 - Interfaz web con Streamlit — sin instalación de cliente, sin terminal visible para el usuario.
 
@@ -25,8 +25,9 @@ Proyecto desarrollado como Trabajo de Fin de Grado de Ingeniería Informática.
 - [Ollama](https://ollama.com) instalado y ejecutándose (`ollama serve`)
 - Al menos un modelo de texto descargado, por ejemplo:
   ```bash
-  ollama pull llama3.1:8b
+  ollama pull gemma3:4b
   ollama pull mistral:7b
+  ollama pull gemma2:9b
   ```
 - Para descripción de imágenes (opcional pero recomendado):
   ```bash
@@ -93,11 +94,17 @@ Flujo del quiz:
 
 | Modelo | VRAM | Calidad | Velocidad (RTX 3060) |
 |---|---|---|---|
-| `llama3.2:3b` | ~2.5 GB | Aceptable | Muy rápido |
-| `mistral:7b` | ~5 GB | Buena | Rápido |
-| `llama3.1:8b` | ~5 GB | Muy buena | Rápido |
-| `gemma2:9b` | ~6 GB | Muy buena | Medio |
-| `qwen2.5:7b` | ~5 GB | Muy buena | Rápido |
+| `llama3.2:3b` | ~2.5 GB | Baja | Rápido |
+| `gemma3:4b` | ~3 GB | **Muy alta** | **Rápido** |
+| `mistral:7b` | ~5 GB | Media | Lento |
+| `qwen2.5:7b` | ~5 GB | Media | **Muy rápido** |
+| `gemma2:9b` | ~6 GB | Alta | Medio |
+
+Según el benchmark realizado (5 PDFs × 5 modelos, 25 ejecuciones, ver [`TRACEABILITY.md`](TRACEABILITY.md) §11):
+- **Mejor calidad global:** `gemma3:4b` (13.8 preguntas válidas de media, 8.8 slides de desarrollo, 99.3% JSON success rate).
+- **Mejor relación calidad/tiempo:** `gemma3:4b` (235 s de media para PPTX + quiz).
+- **Peor relación calidad/tiempo:** `mistral:7b` (358 s y solo 7.6 preguntas válidas).
+- **Menor fiabilidad:** `llama3.2:3b` (71.8% JSON success rate, requiere muchos reintentos).
 
 Para descripción de imágenes se usa siempre `llava-llama3:8b` independientemente del modelo de texto seleccionado.
 
@@ -151,6 +158,14 @@ pdf2pptx/
     │   └── quiz_validator.py       # Validación fuerte de preguntas
     └── rendering/
         └── pptx_renderer.py        # Escritura del .pptx con la plantilla
+├── benchmark/
+│   ├── run_benchmark.py            # Orquestador: N PDFs × M modelos
+│   ├── config.py                   # Configuración del experimento
+│   ├── metrics/                    # Métricas automatizadas (PPTX, quiz, modelo)
+│   ├── evaluation/                 # Rúbricas, prompts IA externa, plantillas
+│   ├── reports/                    # CSVs y resúmenes generados
+│   ├── results/                    # Outputs de cada ejecución
+│   └── dataset/                    # Catálogo y PDFs de test
 ```
 
 ---
@@ -176,6 +191,28 @@ pdf2pptx/
 
 ---
 
+## Benchmark y comparación de modelos
+
+El proyecto incluye un sistema de benchmark automatizado para comparar modelos:
+
+```bash
+# Benchmark completo (5 PDFs × 5 modelos = 25 ejecuciones)
+python -m benchmark.run_benchmark
+
+# Subconjunto filtrado
+python -m benchmark.run_benchmark --models gemma3:4b mistral:7b --pdfs pdf_01 pdf_02
+```
+
+Genera automáticamente:
+- Métricas objetivas de PPTX, quiz y rendimiento del modelo
+- PPTX y quiz de cada ejecución para revisión
+- Prompts estandarizados para evaluación con IA externa (ChatGPT/Gemini)
+- CSVs resumen y plantillas de evaluación manual
+
+Ver `TRACEABILITY.md` sección 11 para la metodología completa.
+
+---
+
 ## Limitaciones conocidas
 
 - Solo procesa PDFs con texto digital seleccionable. Los PDFs escaneados no son compatibles.
@@ -188,6 +225,6 @@ pdf2pptx/
 ## Líneas de trabajo futuro
 
 - Soporte OCR para PDFs escaneados (`pytesseract` + `pdf2image`).
-- Evaluación comparativa automatizada entre modelos.
+
 - Exportación del quiz a otros formatos (Moodle XML, Anki).
 - Inclusión de imágenes descritas directamente en las diapositivas PPTX.

@@ -1,0 +1,60 @@
+{
+  "description": "Catálogo de PDFs para el benchmark. Cada PDF tiene metadatos para clasificar los resultados.",
+  "pdfs": [
+    {
+      "id": "pdf_01",
+      "filename": "InteligenciaArtificial.pdf",
+      "description": "Documento académico sobre Inteligencia Artificial",
+      "type": "academico",
+      "pages_approx": 22,
+      "language": "es",
+      "has_tables": false,
+      "has_images": true,
+      "notes": ""
+    },
+    {
+      "id": "pdf_02",
+      "filename": "Java.pdf",
+      "description": "Documento académico sobre lenguaje de programación Java",
+      "type": "academico",
+      "pages_approx": 10,
+      "language": "es",
+      "has_tables": false,
+      "has_images": true,
+      "notes": ""
+    },
+    {
+      "id": "pdf_03",
+      "filename": "ProgOrientadaObjetos.pdf",
+      "description": "Documento académico sobre Programación Orientada a Objetos",
+      "type": "academico",
+      "pages_approx": 15,
+      "language": "es",
+      "has_tables": true,
+      "has_images": true,
+      "notes": ""
+    },
+    {
+      "id": "pdf_04",
+      "filename": "BasesDatosDistribuidas.pdf",
+      "description": "Documento académico sobre Bases de Datos Distribuidas",
+      "type": "academico",
+      "pages_approx": 22,
+      "language": "es",
+      "has_tables": false,
+      "has_images": true,
+      "notes": ""
+    },
+    {
+      "id": "pdf_05",
+      "filename": "FundamentosBigData.pdf",
+      "description": "Documento académico sobre Fundamentos de Big Data",
+      "type": "academico",
+      "pages_approx": 21,
+      "language": "es",
+      "has_tables": false,
+      "has_images": true,
+      "notes": ""
+    }
+  ]
+}

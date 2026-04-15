@@ -8,9 +8,40 @@ Responsabilidades:
 """
 
 import re
+from collections import Counter
 
 from src.domain.models import DocumentSection
 from config.settings import CHUNK_SIZE, CHUNK_OVERLAP, PDF_MAX_CHUNKS
+
+# Patrones de metadatos editoriales sin valor pedagógico (precompilados)
+_META_PATTERNS = [re.compile(p, re.IGNORECASE) for p in [
+    r'ISBN[\s\-:]?\d',
+    r'©|Copyright|All rights reserved|Todos los derechos reservados',
+    r'Primera edición|Segunda edición|[\w\s]+ edición.*\d{4}',
+    r'Impreso en|Printed in',
+    r'Depósito legal|D\.L\.',
+    r'\$\s*\d+|\€\s*\d+|\bprecio\b',
+    r'\beditorial\b.{0,40}\bS\.?A\.?\b',
+    r'Reservados todos los derechos',
+    r'queda prohibida la reproducción',
+    r'\bcoautor\b|\bautor de\b|\bautora de\b',
+    r'\bha impartido\b|\bha publicado\b|\bha escrito\b',
+    r'\bconferenci(ante|as)\b|\bseminarios?\b.{0,30}\bpaíses?\b',
+    r'\w+_FIN\b',
+    r'^\s*\d{1,2}/\d{1,2}/\d{2,4}\s*$',
+]]
+
+# Patrones de ruido (precompilados)
+_NOISE_PATTERNS = [re.compile(p, re.IGNORECASE) for p in [
+    r'^[\d\s\.\-\(\)\/\+]+$',
+    r'^tel[éefono]*[\s\.:]+[\d\s\-\+\(\)]+',
+    r'^fax[\s\.:]+[\d\s\-\+\(\)]+',
+    r'^\s*https?://',
+    r'^\s*www\.',
+    r'^[•·\-–—\*]+\s*$',
+    r'[\.\s]{4,}\d{1,4}\s*$',
+    r'^\d+(\.\d+)*\s+.{5,60}[\.\s]{4,}\d+\s*$',
+]]
 
 
 # ---------------------------------------------------------------------------
@@ -104,7 +135,6 @@ def _remove_repeated_headers(text: str) -> str:
     (síntoma típico de cabeceras/pies de página repetidos en cada página).
     """
     lines = text.splitlines()
-    from collections import Counter
     counts = Counter(line.strip() for line in lines if line.strip())
     repeated = {line for line, n in counts.items() if n > 3 and len(line) < 120}
     filtered = [line for line in lines if line.strip() not in repeated]
@@ -134,26 +164,10 @@ def _remove_metadata_lines(text: str) -> str:
     ISBN, precios, derechos de autor, editoriales, números de depósito legal,
     bios de autor, citas de contraportada.
     """
-    _META_PATTERNS = [
-        r'ISBN[\s\-:]?\d',
-        r'©|Copyright|All rights reserved|Todos los derechos reservados',
-        r'Primera edición|Segunda edición|[\w\s]+ edición.*\d{4}',
-        r'Impreso en|Printed in',
-        r'Depósito legal|D\.L\.',
-        r'\$\s*\d+|\€\s*\d+|\bprecio\b',
-        r'\beditorial\b.{0,40}\bS\.?A\.?\b',
-        r'Reservados todos los derechos',
-        r'queda prohibida la reproducción',
-        r'\bcoautor\b|\bautor de\b|\bautora de\b',       # bios de autor
-        r'\bha impartido\b|\bha publicado\b|\bha escrito\b',  # bio estilo CV
-        r'\bconferenci(ante|as)\b|\bseminarios?\b.{0,30}\bpaíses?\b',  # bio de ponente
-        r'\w+_FIN\b',                                    # artefactos de exportadores PDF (nombrearchivo_FIN)
-        r'^\s*\d{1,2}/\d{1,2}/\d{2,4}\s*$',            # fechas aisladas
-    ]
     lines = text.splitlines()
     filtered = [
         line for line in lines
-        if not any(re.search(p, line.strip(), re.IGNORECASE) for p in _META_PATTERNS)
+        if not any(p.search(line.strip()) for p in _META_PATTERNS)
     ]
     return '\n'.join(filtered)
 
@@ -164,20 +178,10 @@ def _remove_noise_lines(text: str) -> str:
     solo números, teléfonos, líneas de 1-2 palabras aisladas,
     líneas que son solo puntuación o símbolos, entradas de índice/sumario.
     """
-    _NOISE_PATTERNS = [
-        r'^[\d\s\.\-\(\)\/\+]+$',               # solo números y símbolos
-        r'^tel[éefono]*[\s\.:]+[\d\s\-\+\(\)]+', # teléfonos
-        r'^fax[\s\.:]+[\d\s\-\+\(\)]+',          # fax
-        r'^\s*https?://',                         # URL como línea
-        r'^\s*www\.',                             # web como línea
-        r'^[•·\-–—\*]+\s*$',                     # solo viñetas o guiones
-        r'[\.\s]{4,}\d{1,4}\s*$',               # entrada de índice: "Capítulo . . . . 42"
-        r'^\d+(\.\d+)*\s+.{5,60}[\.\s]{4,}\d+\s*$',  # "1. Título . . . . 15"
-    ]
     lines = text.splitlines()
     filtered = [
         line for line in lines
-        if not any(re.search(p, line.strip(), re.IGNORECASE) for p in _NOISE_PATTERNS)
+        if not any(p.search(line.strip()) for p in _NOISE_PATTERNS)
     ]
     return '\n'.join(filtered)
 
